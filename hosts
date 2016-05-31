@@ -1,5 +1,5 @@
 [www1]
-192.168.2.3
+192.168.2.2
 
 [www2]
 192.168.2.4
@@ -17,9 +17,9 @@ www2
 [all:children]
 webservers
 mgr
-rp
+lb
 
 [all:vars]
-ansible_connection=ssh
-ansible_ssh_user=vagrant
+ansible_connection=ssh 
+ansible_ssh_user=vagrant 
 ansible_ssh_pass=vagrant
