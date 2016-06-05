@@ -1,4 +1,5 @@
 ---
+#Ansible on Manager
 - hosts: mgr
   sudo: yes
   tasks:
@@ -6,3 +7,55 @@
        apt: name={{ item }} state=present update_cache=yes
        with_items:
            - ansible
+
+#haproxy on Loadbalancer
+- hosts: lb
+  sudo: yes
+  tasks:
+  - name: Install haproxy and socat
+    apt: pkg={{ item }} state=latest
+    with_items:
+    - haproxy
+    - socat
+  - name: Enable haproxy
+    lineinfile: dest=/etc/default/haproxy regexp="^ENABLED" line="ENABLED=1"
+    notify: restart haproxy
+  - name: Deploy haproxy config
+    template: src=haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg
+    notify: restart haproxy
+  handlers:
+  - name: Restart haproxy
+    service: name=haproxy state=restarted
+
+#Apache on Webservers
+- hosts: webservers
+  sudo: yes
+  serial: 1
+  pre_tasks:
+  - name: Disable server haproxy
+    shell: echo "disable server server1/ {{ inventory_hostname }}" | socat stdio /var/lib/haproxy/stats
+    delegate_to: "{{ item }}"
+    with_items: groups.lb
+  tasks:
+  - name: Install Apache.
+    apt: name={{ item }} state=latest update_cache=yes
+    with_items:
+        - apache2
+        - libapache2-mod-php5
+    notify:
+       - enable php5
+       - restart apache
+  - name: Deploy website
+    template: src=index.html.j2 dest=/var/www/html/index.html
+  - name: Run Apache and enable boot
+    service: name=apache2 state=started enabled=yes
+  handlers:
+   - name: Enable php5
+     command: a2enmod php5
+   - name: Restart Apache
+     service: name=apache2 state=restarted
+  post_tasks:
+  - name: Enable server haproxy
+    shell: echo "enable server server1/ {{ inventory_hostname }}" | socat stdio /var/lib/haproxy/stats
+    delegate_to: "{{ item }}"
+    with_items: groups.lb
